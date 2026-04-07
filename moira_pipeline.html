@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moira AI · Intent Pipeline</title>
+<style>
+@font-face {
+  font-family: 'Yellix';
+  src: url('https://storage.googleapis.com/metabase_fonts_yellix/Yellix-Regular.woff2') format('woff2');
+  font-weight: 400;
+}
+@font-face {
+  font-family: 'Yellix';
+  src: url('https://storage.googleapis.com/metabase_fonts_yellix/Yellix-Medium.woff2') format('woff2');
+  font-weight: 500;
+}
+@font-face {
+  font-family: 'Yellix';
+  src: url('https://storage.googleapis.com/metabase_fonts_yellix/Yellix-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --white: #ffffff;
+  --bg: #f7f6f3;
+  --bg2: #f0efe9;
+  --surface: #ffffff;
+  --surface2: #fafaf8;
+  --border: rgba(0,0,0,0.07);
+  --border2: rgba(0,0,0,0.11);
+  --border3: rgba(0,0,0,0.18);
+  --text: #111110;
+  --text2: #6b6a65;
+  --text3: #a8a7a2;
+  --accent: #2563eb;
+  --accent-light: #eff4ff;
+  --accent-mid: #93aff5;
+  --green: #16a34a;
+  --green-light: #f0fdf4;
+  --green-mid: #86efac;
+  --amber: #b45309;
+  --amber-light: #fffbeb;
+  --amber-mid: #fcd34d;
+  --coral: #dc2626;
+  --coral-light: #fef2f2;
+  --coral-mid: #fca5a5;
+  --teal: #0d9488;
+  --teal-light: #f0fdfa;
+  --teal-mid: #5eead4;
+  --sans: 'Yellix', system-ui, sans-serif;
+}
+
+html, body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── subtle dot grid ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(0,0,0,0.07) 1px, transparent 1px);
+  background-size: 28px 28px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.page {
+  position: relative;
+  z-index: 1;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 52px 28px 100px;
+}
+
+/* ── Header ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.moira-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--white);
+  border: 1px solid var(--border2);
+  border-radius: 100px;
+  padding: 5px 12px 5px 8px;
+  margin-bottom: 20px;
+  animation: fadeUp 0.5s ease both;
+}
+.moira-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: livePulse 2s ease-in-out infinite;
+}
+@keyframes livePulse {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50%     { opacity: 0.5; transform: scale(0.85); }
+}
+.moira-badge-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+  letter-spacing: 0.01em;
+}
+
+.header {
+  margin-bottom: 36px;
+  animation: fadeUp 0.55s ease 0.05s both;
+}
+.header h1 {
+  font-size: 36px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.header h1 span {
+  color: var(--accent);
+}
+.header p {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text2);
+  line-height: 1.7;
+  max-width: 480px;
+}
+
+/* ── Stats row ── */
+.stats {
+  display: flex;
+  gap: 0;
+  background: var(--white);
+  border: 1px solid var(--border2);
+  border-radius: 14px;
+  padding: 0;
+  margin-bottom: 32px;
+  overflow: hidden;
+  animation: fadeUp 0.55s ease 0.1s both;
+}
+.stat {
+  flex: 1;
+  padding: 14px 16px;
+  border-right: 1px solid var(--border);
+  min-width: 0;
+}
+.stat:last-child { border-right: none; }
+.stat-val {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  display: block;
+  white-space: nowrap;
+}
+.stat-key {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text3);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-top: 2px;
+  display: block;
+  white-space: nowrap;
+}
+
+/* ── Route chips ── */
+.chips-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text3);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  animation: fadeUp 0.55s ease 0.15s both;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 32px;
+  animation: fadeUp 0.55s ease 0.18s both;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--sans);
+  cursor: pointer;
+  border: 1px solid var(--border2);
+  background: var(--white);
+  color: var(--text2);
+  transition: all 0.18s ease;
+}
+.chip:hover {
+  border-color: var(--border3);
+  color: var(--text);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.chip.active {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  color: var(--accent);
+}
+.chip-icon { font-size: 14px; }
+
+/* ── Pipeline ── */
+.pipeline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ── User card ── */
+.user-card {
+  width: 100%;
+  background: var(--white);
+  border: 1px solid var(--border2);
+  border-radius: 16px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  animation: fadeUp 0.4s ease both;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+.user-avatar {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: var(--accent-light);
+  border: 1.5px solid var(--accent-mid);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.user-query {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  font-style: italic;
+  line-height: 1.5;
+}
+.user-sublabel {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text3);
+  margin-top: 3px;
+  letter-spacing: 0.02em;
+}
+
+/* ── Connector ── */
+.connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 30px;
+  flex-shrink: 0;
+  position: relative;
+}
+.conn-line {
+  width: 2px;
+  flex: 1;
+  background: var(--border2);
+  position: relative;
+  overflow: visible;
+}
+.conn-tip {
+  width: 0; height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid var(--border2);
+}
+.flow-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  position: absolute;
+  left: -3.5px;
+  animation: dotFlow 1.8s ease-in-out infinite;
+  box-shadow: 0 0 6px currentColor;
+}
+@keyframes dotFlow {
+  0%   { top: 0%;   opacity: 0; }
+  12%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* ── Node card ── */
+.node {
+  width: 100%;
+  background: var(--white);
+  border: 1px solid var(--border2);
+  border-radius: 16px;
+  padding: 14px 18px;
+  cursor: pointer;
+  transition: border-color 0.18s, box-shadow 0.18s, transform 0.15s;
+  position: relative;
+  overflow: hidden;
+  animation: fadeUp 0.4s ease both;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+.node:hover {
+  border-color: var(--border3);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  transform: translateY(-1px);
+}
+.node.is-classifier {
+  border-color: rgba(37,99,235,0.25);
+  background: var(--white);
+}
+
+/* scan line on classifier */
+@keyframes scan {
+  0%   { top: -2px; opacity: 0.5; }
+  100% { top: 102%; opacity: 0; }
+}
+.scan-line {
+  position: absolute;
+  left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--accent) 40%, var(--accent) 60%, transparent 100%);
+  opacity: 0.35;
+  animation: scan 2.8s linear infinite;
+  pointer-events: none;
+}
+
+.node-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.node-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+.node-icon {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+}
+.node-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.node-sub {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text2);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 340px;
+}
+
+/* ── Badges ── */
+.badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 100px;
+  border: 1px solid;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-family: var(--sans);
+  letter-spacing: 0.02em;
+}
+.b-blue   { color: var(--accent); border-color: var(--accent-mid); background: var(--accent-light); }
+.b-green  { color: var(--green);  border-color: var(--green-mid);  background: var(--green-light); }
+.b-amber  { color: var(--amber);  border-color: var(--amber-mid);  background: var(--amber-light); }
+.b-coral  { color: var(--coral);  border-color: var(--coral-mid);  background: var(--coral-light); }
+.b-teal   { color: var(--teal);   border-color: var(--teal-mid);   background: var(--teal-light); }
+.b-gray   { color: var(--text2);  border-color: var(--border2);    background: var(--bg2); }
+
+/* end badge pulse */
+@keyframes endPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(22,163,74,0); }
+  50%     { box-shadow: 0 0 0 4px rgba(22,163,74,0.15); }
+}
+.b-green.end { animation: endPulse 2.2s ease-in-out infinite; }
+
+/* ── Detail expand ── */
+@keyframes expandIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.detail { display: none; margin-top: 12px; }
+.detail.open { display: block; animation: expandIn 0.2s ease; }
+
+.detail-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.detail-text {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text2);
+  line-height: 1.75;
+  margin-bottom: 10px;
+}
+
+.layer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--white);
+  margin-bottom: 5px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.layer-row:last-child { margin-bottom: 0; }
+.layer-row:hover { border-color: var(--border3); box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+.lr-key { font-weight: 600; color: var(--accent); min-width: 50px; }
+.lr-val { color: var(--text2); flex: 1; }
+.lr-time { margin-left: auto; }
+
+/* ── Chevron toggle ── */
+.chevron {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--border2);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  color: var(--text3);
+  font-size: 10px;
+  transition: transform 0.2s, background 0.2s;
+}
+.node.expanded .chevron { transform: rotate(180deg); background: var(--bg2); }
+
+/* ── Async section ── */
+.async-wrap { width: 100%; }
+.async-divider {
+  display: flex; align-items: center; gap: 12px;
+  margin: 20px 0 14px;
+}
+.async-line { height: 1px; flex: 1; background: var(--border2); }
+.async-tag {
+  font-size: 11px; font-weight: 500;
+  color: var(--text3); letter-spacing: 0.06em;
+  white-space: nowrap; padding: 3px 12px;
+  border: 1px solid var(--border2);
+  border-radius: 100px; background: var(--white);
+}
+.async-grid {
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  gap: 10px;
+}
+.async-card {
+  background: var(--white);
+  border: 1px solid var(--border2);
+  border-radius: 14px;
+  padding: 14px;
+  cursor: pointer;
+  transition: border-color 0.18s, box-shadow 0.18s, transform 0.15s;
+  animation: fadeUp 0.4s ease both;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+}
+.async-card:hover {
+  border-color: var(--border3);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.07);
+  transform: translateY(-2px);
+}
+.async-emoji { font-size: 20px; margin-bottom: 8px; display: block; }
+.async-title { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+.async-sub   { font-size: 11px; font-weight: 400; color: var(--text3); line-height: 1.5; }
+
+/* ── Footer ── */
+.footer {
+  margin-top: 52px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  animation: fadeUp 0.5s ease 0.4s both;
+}
+.footer-brand {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.footer-brand span { color: var(--accent); }
+.footer-meta {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text3);
+}
+
+/* ── Responsive ── */
+@media (max-width: 520px) {
+  .async-grid { grid-template-columns: 1fr; }
+  .header h1 { font-size: 26px; }
+  .stats { flex-wrap: wrap; }
+  .stat { min-width: 80px; }
+  .node-sub { max-width: 200px; }
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- Brand badge -->
+  <div class="moira-badge">
+    <div class="moira-dot"></div>
+    <span class="moira-badge-text">Moira AI Engine · Live Architecture</span>
+  </div>
+
+  <!-- Header -->
+  <div class="header">
+    <h1>How every question<br>finds its <span>answer</span></h1>
+    <p>A 4-layer intent cascade routes each query through the optimal execution path — from sub-millisecond regex to LLM fallback — before entering the SQL generation loop.</p>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat">
+      <span class="stat-val">&lt;1ms</span>
+      <span class="stat-key">Layer 0</span>
+    </div>
+    <div class="stat">
+      <span class="stat-val">85%</span>
+      <span class="stat-key">Layer 1 coverage</span>
+    </div>
+    <div class="stat">
+      <span class="stat-val">~40ms</span>
+      <span class="stat-key">Semantic routing</span>
+    </div>
+    <div class="stat">
+      <span class="stat-val">10</span>
+      <span class="stat-key">Max SQL steps</span>
+    </div>
+    <div class="stat">
+      <span class="stat-val">3×</span>
+      <span class="stat-key">Anti-hallucination</span>
+    </div>
+  </div>
+
+  <!-- Chips -->
+  <div class="chips-label">Trace a query route</div>
+  <div class="chips" id="chips">
+    <button class="chip active" onclick="selectRoute('sql',this)"><span class="chip-icon">📊</span>SQL query</button>
+    <button class="chip" onclick="selectRoute('alert',this)"><span class="chip-icon">🔔</span>Create alert</button>
+    <button class="chip" onclick="selectRoute('web',this)"><span class="chip-icon">🌐</span>Web research</button>
+    <button class="chip" onclick="selectRoute('qa',this)"><span class="chip-icon">💬</span>General Q&amp;A</button>
+    <button class="chip" onclick="selectRoute('sqlweb',this)"><span class="chip-icon">🔀</span>SQL + web</button>
+  </div>
+
+  <!-- Pipeline -->
+  <div class="pipeline" id="pipeline">
+
+    <!-- User node -->
+    <div class="user-card">
+      <div class="user-avatar">👤</div>
+      <div>
+        <div class="user-query" id="user-query">"How many sales did we close this month?"</div>
+        <div class="user-sublabel">incoming user question</div>
+      </div>
+    </div>
+
+    <!-- Connector -->
+    <div class="connector">
+      <div class="conn-line">
+        <div class="flow-dot" id="dot-entry" style="color:var(--accent); background:var(--accent); animation-delay:0s;"></div>
+      </div>
+      <div class="conn-tip"></div>
+    </div>
+
+    <!-- Classifier (always visible) -->
+    <div class="node is-classifier" id="classifier-node" onclick="toggleClassifier()">
+      <div class="scan-line"></div>
+      <div class="node-row">
+        <div class="node-left">
+          <div class="node-icon" style="background:var(--accent-light); border-color:rgba(37,99,235,0.15);">⚡</div>
+          <div style="min-width:0;">
+            <div class="node-title">intent_classifier</div>
+            <div class="node-sub">4-layer cascade · heuristic → semantic → LLM → fallback</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+          <span class="badge b-blue" id="route-badge">SQL_QUERY</span>
+          <div class="chevron" id="classifier-chevron">▾</div>
+        </div>
+      </div>
+      <div class="detail open" id="detail-classifier">
+        <div class="detail-box">
+          <div class="layer-row">
+            <span class="lr-key">Layer 0</span>
+            <span class="lr-val">heuristic regex — instant pattern match</span>
+            <span class="lr-time"><span class="badge b-green">&lt;1ms</span></span>
+          </div>
+          <div class="layer-row">
+            <span class="lr-key">Layer 1</span>
+            <span class="lr-val">BGE-M3 embeddings + logistic regression</span>
+            <span class="lr-time"><span class="badge b-blue">85% · 40ms</span></span>
+          </div>
+          <div class="layer-row">
+            <span class="lr-key">Layer 2</span>
+            <span class="lr-val">LLM Haiku with anti-anchoring prompt</span>
+            <span class="lr-time"><span class="badge b-amber">15% · 500ms</span></span>
+          </div>
+          <div class="layer-row">
+            <span class="lr-key">Layer 3</span>
+            <span class="lr-val">heuristic fallback — safe default</span>
+            <span class="lr-time"><span class="badge b-gray">&lt;1ms</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dynamic steps -->
+    <div id="dyn" style="width:100%; display:contents;"></div>
+
+  </div>
+
+  <!-- Async background jobs -->
+  <div id="async-section" style="display:none; width:100%;">
+    <div class="async-wrap">
+      <div class="async-divider">
+        <div class="async-line"></div>
+        <div class="async-tag">async · background jobs</div>
+        <div class="async-line"></div>
+      </div>
+      <div class="async-grid">
+        <div class="async-card" title="Stores domain-tagged context from every successful query for future schema linking.">
+          <span class="async-emoji">🧠</span>
+          <div class="async-title">save_org_memory</div>
+          <div class="async-sub">Domain-tagged context written after each answer</div>
+        </div>
+        <div class="async-card" title="Nightly HDBSCAN clustering over BGE-M3 embeddings — detects anomalies and writes insight:{id} to Redis.">
+          <span class="async-emoji">🔮</span>
+          <div class="async-title">Proactive insights</div>
+          <div class="async-sub">HDBSCAN clustering · BGE-M3 · nightly</div>
+        </div>
+        <div class="async-card" title="Celery Beat polls Redis every 60s. On threshold hit, fires a Slack DM with the 🔮 proactive delivery.">
+          <span class="async-emoji">🔔</span>
+          <div class="async-title">Celery Beat → Slack</div>
+          <div class="async-sub">Redis poll every 60s · proactive DM delivery</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="footer-brand"><span>Moira</span> AI Engine</div>
+    <div class="footer-meta">Intent Classification Pipeline · Architecture Overview</div>
+  </div>
+
+</div>
+
+<script>
+const ROUTES = {
+  sql: {
+    query: '"How many sales did we close this month?"',
+    badge: 'SQL_QUERY', badgeClass: 'b-blue',
+    dotColor: '#2563eb', showAsync: true,
+    steps: [
+      { icon:'✏️', ibg:'#eff4ff', ibd:'rgba(37,99,235,0.12)',
+        title:'question_rewriter', sub:'domain anchoring · recent_tables_used',
+        badge:'', bc:'', delay:0.04,
+        detail:'Rewrites the question anchoring it to the org\'s business domain and injecting recently used tables as context hints for the schema linker downstream.' },
+      { icon:'🗂️', ibg:'#eff4ff', ibd:'rgba(37,99,235,0.12)',
+        title:'schema_linker', sub:'Qdrant MMR · org memory boost · ACL filter',
+        badge:'', bc:'', delay:0.08,
+        detail:'Retrieves relevant tables and columns via semantic search (Qdrant MMR). Boosts results from org memory. Filters out tables the user can\'t access via ACL.' },
+      { icon:'🧩', ibg:'#eff4ff', ibd:'rgba(37,99,235,0.12)',
+        title:'query_planner', sub:'Claude Sonnet · exploratory step if partition unknown',
+        badge:'', bc:'', delay:0.12,
+        detail:'Sonnet decomposes the query into a multi-step execution plan. If the target partition is unknown, it first runs an exploratory_step to discover it before writing SQL.' },
+      { icon:'🔁', ibg:'#f0fdfa', ibd:'rgba(13,148,136,0.15)',
+        title:'sql loop', sub:'generator → SQL Guard validator → executor (BQ / PG / DuckDB)',
+        badge:'retry ×3', bc:'b-amber', delay:0.16,
+        detail:'Per step: sql_generator writes the query, sql_validator runs SQL Guard checks, sql_executor runs it on the right engine. Up to 3 automatic retries on error. Max 10 steps per report.' },
+      { icon:'📊', ibg:'#f0fdf4', ibd:'rgba(22,163,74,0.12)',
+        title:'answer_synthesizer', sub:'Executive Summary · ECharts visualizations',
+        badge:'', bc:'', delay:0.20,
+        detail:'Synthesizes all step results into a structured executive summary. Automatically selects and renders the right ECharts chart type for the data shape returned.' },
+      { icon:'✅', ibg:'#f0fdf4', ibd:'rgba(22,163,74,0.12)',
+        title:'answer_validator', sub:'3-layer anti-hallucination check',
+        badge:'END', bc:'b-green end', delay:0.24,
+        detail:'Three validation layers: (1) data grounding — every claim backed by a SQL result, (2) numeric consistency check, (3) citation audit. Fails safe if any layer fails.' },
+    ]
+  },
+  sqlweb: {
+    query: '"How did our Q3 sales track vs market trends?"',
+    badge: 'SQL + WEB', badgeClass: 'b-blue',
+    dotColor: '#2563eb', showAsync: true,
+    steps: [
+      { icon:'✏️', ibg:'#eff4ff', ibd:'rgba(37,99,235,0.12)',
+        title:'question_rewriter', sub:'splits internal (SQL) vs external (web) scope',
+        badge:'', bc:'', delay:0.04,
+        detail:'Identifies the dual intent: internal data via SQL and external context via web. Rewrites into two parallel sub-queries for downstream planners.' },
+      { icon:'🗂️', ibg:'#eff4ff', ibd:'rgba(37,99,235,0.12)',
+        title:'schema_linker', sub:'links tables for the SQL branch only',
+        badge:'', bc:'', delay:0.08,
+        detail:'Only links tables needed for the internal SQL branch. The web branch runs independently through Tavily without touching the schema.' },
+      { icon:'🧩', ibg:'#eff4ff', ibd:'rgba(37,99,235,0.12)',
+        title:'query_planner', sub:'Claude Sonnet · plans both branches in parallel',
+        badge:'parallel', bc:'b-teal', delay:0.12,
+        detail:'Plans the SQL execution steps and the web search queries simultaneously to minimize total end-to-end latency for the user.' },
+      { icon:'🔁', ibg:'#f0fdfa', ibd:'rgba(13,148,136,0.15)',
+        title:'sql loop', sub:'standard generator → validator → executor cycle',
+        badge:'retry ×3', bc:'b-amber', delay:0.16,
+        detail:'Runs the SQL branch normally. Concurrent with web_enrichment — both complete before answer_synthesizer merges the results.' },
+      { icon:'🌐', ibg:'#f0fdfa', ibd:'rgba(13,148,136,0.15)',
+        title:'web_enrichment', sub:'Tavily · market data · news · external benchmarks',
+        badge:'parallel', bc:'b-teal', delay:0.16,
+        detail:'Tavily fires multiple targeted searches for market trends, industry news, and external benchmarks. Runs concurrently with the SQL loop.' },
+      { icon:'📊', ibg:'#f0fdf4', ibd:'rgba(22,163,74,0.12)',
+        title:'answer_synthesizer', sub:'merges SQL results + web enrichment',
+        badge:'', bc:'', delay:0.22,
+        detail:'Fuses internal SQL data with external web context into a unified executive summary with comparative charts showing internal vs external trends.' },
+      { icon:'✅', ibg:'#f0fdf4', ibd:'rgba(22,163,74,0.12)',
+        title:'answer_validator', sub:'3-layer anti-hallucination check',
+        badge:'END', bc:'b-green end', delay:0.26,
+        detail:'Validates the fused answer. Cross-checks that no external claim contradicts internal SQL data. Grounding layer covers both sources.' },
+    ]
+  },
+  alert: {
+    query: '"Alert me if sales drop more than 20% week-over-week"',
+    badge: 'ALERT', badgeClass: 'b-coral',
+    dotColor: '#dc2626', showAsync: false,
+    steps: [
+      { icon:'🔔', ibg:'#fef2f2', ibd:'rgba(220,38,38,0.12)',
+        title:'alert_manager', sub:'CRUD · threshold config · metric binding',
+        badge:'', bc:'', delay:0.04,
+        detail:'Handles the full lifecycle: creates the alert with the threshold (−20% WoW), binds it to the relevant metric query, and persists it. Also handles updates and deletions via natural language.' },
+      { icon:'💬', ibg:'#fef2f2', ibd:'rgba(220,38,38,0.12)',
+        title:'slack dm', sub:'confirmation · alert ID · trigger preview',
+        badge:'END', bc:'b-green end', delay:0.08,
+        detail:'Sends a Slack DM confirming the alert was created, showing the alert ID, the exact threshold, and a preview of what the trigger notification will look like when it fires.' },
+    ]
+  },
+  web: {
+    query: '"What happened with Nvidia\'s earnings this week?"',
+    badge: 'WEB_RESEARCH', badgeClass: 'b-teal',
+    dotColor: '#0d9488', showAsync: false,
+    steps: [
+      { icon:'🌐', ibg:'#f0fdfa', ibd:'rgba(13,148,136,0.15)',
+        title:'web_research', sub:'Tavily · multi-query · ranked synthesis',
+        badge:'', bc:'', delay:0.04,
+        detail:'Fires multiple Tavily search queries in parallel, de-duplicates results, ranks by recency and relevance, then synthesizes a coherent narrative with source citations.' },
+      { icon:'📝', ibg:'#f0fdfa', ibd:'rgba(13,148,136,0.15)',
+        title:'answer to user', sub:'synthesized summary · source citations',
+        badge:'END', bc:'b-green end', delay:0.08,
+        detail:'Delivers a clean summary with inline source citations. No SQL execution, no memory writes — pure real-time web synthesis delivered directly.' },
+    ]
+  },
+  qa: {
+    query: '"What\'s the difference between a B-tree and a hash index?"',
+    badge: 'GENERAL_QA', badgeClass: 'b-gray',
+    dotColor: '#6b6a65', showAsync: false,
+    steps: [
+      { icon:'💬', ibg:'#f7f6f3', ibd:'rgba(0,0,0,0.08)',
+        title:'general_qa', sub:'org context · model knowledge · direct response',
+        badge:'', bc:'', delay:0.04,
+        detail:'Answers using the model\'s knowledge enriched with org-specific context from memory. No SQL execution or web search required — fastest possible path.' },
+      { icon:'✅', ibg:'#f0fdf4', ibd:'rgba(22,163,74,0.12)',
+        title:'answer to user', sub:'direct · low-latency · no external calls',
+        badge:'END', bc:'b-green end', delay:0.08,
+        detail:'Delivers the answer immediately. No external tool calls — the lowest-latency route in the entire pipeline.' },
+    ]
+  }
+};
+
+let classifierOpen = true;
+
+function toggleClassifier() {
+  classifierOpen = !classifierOpen;
+  const det = document.getElementById('detail-classifier');
+  const node = document.getElementById('classifier-node');
+  const chev = document.getElementById('classifier-chevron');
+  det.classList.toggle('open', classifierOpen);
+  node.classList.toggle('expanded', classifierOpen);
+}
+
+function toggleDetail(id) {
+  const el = document.getElementById(id);
+  const node = el.closest('.node');
+  const open = el.classList.contains('open');
+  el.classList.toggle('open', !open);
+  if (node) node.classList.toggle('expanded', !open);
+}
+
+function makeDot(color, delay) {
+  return `<div class="flow-dot" style="background:${color}; color:${color}; animation-delay:${delay}s;"></div>`;
+}
+
+function makeConnector(color, delay) {
+  return `<div class="connector"><div class="conn-line">${makeDot(color, delay)}</div><div class="conn-tip"></div></div>`;
+}
+
+function selectRoute(route, btn) {
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  renderRoute(route);
+}
+
+function renderRoute(route) {
+  const r = ROUTES[route];
+  document.getElementById('user-query').textContent = r.query;
+  document.getElementById('dot-entry').style.background = r.dotColor;
+  document.getElementById('dot-entry').style.color = r.dotColor;
+  const rb = document.getElementById('route-badge');
+  rb.textContent = r.badge;
+  rb.className = 'badge ' + r.badgeClass;
+
+  const dyn = document.getElementById('dyn');
+  let html = '';
+
+  r.steps.forEach((s, i) => {
+    const did = `det-${i}`;
+    html += makeConnector(r.dotColor, s.delay);
+    html += `<div class="node" onclick="toggleDetail('${did}')" style="animation-delay:${s.delay}s;">
+      <div class="node-row">
+        <div class="node-left">
+          <div class="node-icon" style="background:${s.ibg}; border-color:${s.ibd};">${s.icon}</div>
+          <div style="min-width:0;">
+            <div class="node-title">${s.title}</div>
+            <div class="node-sub">${s.sub}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+          ${s.badge ? `<span class="badge ${s.bc}">${s.badge}</span>` : ''}
+          <div class="chevron">▾</div>
+        </div>
+      </div>
+      <div class="detail" id="${did}">
+        <div class="detail-box">
+          <p class="detail-text">${s.detail}</p>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  dyn.innerHTML = html;
+
+  const as = document.getElementById('async-section');
+  as.style.display = r.showAsync ? 'block' : 'none';
+}
+
+renderRoute('sql');
+</script>
+</body>
+</html>
